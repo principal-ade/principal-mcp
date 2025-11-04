@@ -17,7 +17,7 @@ principal-mcp
 
 | Option | Description | Default |
 | ------ | ----------- | ------- |
-| `--port`, `PRINCIPLE_MCP_PORT` | MCP bridge port shared by prompt, planning, and dependency tools | `3043` |
+| `--port`, `PRINCIPLE_MCP_PORT` | MCP bridge port shared by prompt and dependency tools | `3043` |
 | `--host`, `PRINCIPLE_MCP_HOST` | MCP bridge host | `localhost` |
 | `PRINCIPLE_MCP_PROTOCOL` | Protocol used when contacting ADE HTTP bridge from CLI tools | `http` |
 
@@ -27,11 +27,9 @@ The CLI reads the same environment variables as the Electron app so it can route
 
 | Tool | Purpose |
 | ---- | ------- |
-| `user_prompt` | Request user input via the MCP HTTP bridge prompt endpoint. |
-| `agent-context-handoff` | Send agent handoff context to the Principal ADE bridge. |
-| `start_planning`, `navigate_to_slide`, `get_current_slide`, `update_slide`, `create_slide` | Planning tools that integrate with the ADE planning bridge. |
 | `submit_dependency_task` | Submit a dependency task to ADE; if the bridge is unavailable the task is persisted locally using Memory Palace. |
 | `get_dependency_task_doc` | Resolve the absolute path to a dependency task document stored in Memory Palace. |
+| `add_memory_note` | Create anchored notes in the repository's Memory Palace for storing development insights. |
 
 ## Package Layout
 
@@ -41,8 +39,7 @@ principal-mcp/
   src/
     index.ts                # CLI entry point
     server/                 # MCP server implementation
-    tools/                  # Tool implementations (general + dependency tools)
-    planning/               # Planning tool wrappers
+    tools/                  # Tool implementations (dependency & memory tools)
     types/, utils/          # Shared types & helpers
   scripts/bundle.ts         # Bun-based esbuild bundler
   tests/                    # Bun test suite
@@ -67,9 +64,10 @@ bun run build
 
 ## Runtime Notes
 
-- MCP interactions use a single HTTP bridge port (default `3043`) so agents, planning tools, and dependency workflows share the same channel.
+- MCP interactions use a single HTTP bridge port (default `3043`) for dependency workflows.
 - When `submit_dependency_task` cannot reach ADE it persists the task via Memory Palace; `repositoryRoot` must be supplied in that scenario so the CLI can locate the git root.
 - `get_dependency_task_doc` reads directly from Memory Palace to provide the path to active or completed task documents.
+- `add_memory_note` creates anchored notes locally in the repository's Memory Palace without requiring bridge connectivity.
 
 ## Resources
 

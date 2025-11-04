@@ -64,7 +64,7 @@ Allow an agent to submit a handoff task targeting a dependency repository. The t
 ## Tool 2 – `get_dependency_task_doc`
 
 ### Purpose
-Given a task identifier, return the absolute path to the ADE planning document or offline record so the agent can open / resume work.
+Given a task identifier, return the absolute path to the ADE task document or offline record so the agent can open / resume work.
 
 ### Request Schema (proposed)
 ```ts
