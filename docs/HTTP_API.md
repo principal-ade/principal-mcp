@@ -29,7 +29,9 @@ Example: `http://localhost:3043/dependencies/submit`
 - There are two task submission endpoints:
   - `/tasks/submit` - **Recommended** new endpoint with configurable pending queue
   - `/dependencies/submit` - Legacy endpoint, maintained for backward compatibility
-- The `/dependencies/resolve` endpoint is a query-only operation for looking up dependencies without creating tasks
+- Query-only endpoints (no side effects):
+  - `/projects/resolve` - **New**: Comprehensive project intelligence (metadata, permissions, clones, remote info)
+  - `/dependencies/resolve` - Simple dependency lookup in registered repositories
 
 ### 1. Submit Dependency Task (Legacy)
 
@@ -210,7 +212,207 @@ curl -X POST http://localhost:3043/dependencies/resolve \
 
 ---
 
-### 3. Submit Task (New - Recommended)
+### 3. Resolve Project
+
+Look up comprehensive information about a project including metadata, permissions, local clones, and remote details. This is a query-only operation that provides intelligence for routing tasks and understanding project capabilities.
+
+**Endpoint**: `POST /projects/resolve`
+
+**Request Headers**:
+```
+Content-Type: application/json
+```
+
+**Request Body**:
+```typescript
+{
+  projectId: string;           // Required: Unique identifier for the project
+  repositoryRoot?: string;     // Optional: Context repository path for resolution
+  includeRemoteInfo?: boolean; // Optional: Fetch remote Git/GitHub/GitLab metadata (default: false)
+}
+```
+
+**Success Response** (200 OK):
+```typescript
+{
+  success: true;
+  found: boolean;                    // Whether the project was found
+  projectId: string;                 // The project that was queried
+
+  project?: {                        // Project metadata
+    name: string;
+    description?: string;
+    tags?: string[];
+    type?: "repository" | "package" | "workspace";
+    primaryLanguage?: string;
+    framework?: string;
+  };
+
+  capabilities?: {                   // What operations are permitted
+    canSubmitTasks: boolean;         // Can create tasks via ADE
+    canCreateIssues: boolean;        // Can create GitHub/GitLab issues
+    canCreatePRs: boolean;           // Can submit pull requests
+    canReadCode: boolean;            // Has read access
+    canWriteCode: boolean;           // Has write access
+    integrations?: string[];         // Available integrations: ["github", "ade", "alexandria"]
+  };
+
+  localClones?: Array<{              // Local copies on this machine
+    path: string;                    // Absolute path to clone
+    isPrimary: boolean;              // Is this the main working copy
+    lastModified?: string;           // Last git activity timestamp
+    branch?: string;                 // Current branch name
+    isDirty?: boolean;               // Has uncommitted changes
+    alexandriaRegistered: boolean;   // Registered in Alexandria
+  }>;
+
+  remote?: {                         // Remote repository information
+    url?: string;                    // Git remote URL
+    platform?: "github" | "gitlab" | "bitbucket" | "other";
+    owner?: string;                  // Repository owner/organization
+    repoName?: string;               // Repository name
+    isPrivate?: boolean;             // Is private repository
+  };
+
+  suggestions?: string[];            // Suggestions if not found or limited access
+  message?: string;                  // Human-readable status message
+}
+```
+
+**Error Response** (4xx/5xx):
+```typescript
+{
+  success: false;
+  message?: string;            // Error description
+  error?: string;              // Detailed error information
+}
+```
+
+**Behavior**:
+- This is a read-only operation that does not create tasks or modify any files
+- Queries multiple sources: Alexandria registry, local filesystem, Git remotes, GitHub/GitLab APIs
+- The `includeRemoteInfo` parameter triggers API calls to GitHub/GitLab (may be slower)
+- Returns comprehensive project intelligence for smart task routing and user guidance
+- Useful for determining where to submit work, which clone to use, and what operations are available
+
+**Use Cases**:
+- Smart task routing: Determine if you should submit to ADE, create a GitHub issue, or suggest alternatives
+- Clone discovery: Find all local copies of a project and identify the primary working directory
+- Permission checking: Understand access levels before attempting operations
+- Integration awareness: Know which systems are connected (ADE, GitHub, Alexandria)
+- Status overview: Get current branch, uncommitted changes, and last activity
+
+**Example Request**:
+```bash
+curl -X POST http://localhost:3043/projects/resolve \
+  -H "Content-Type: application/json" \
+  -d '{
+    "projectId": "auth-service",
+    "repositoryRoot": "/Users/dev/my-project",
+    "includeRemoteInfo": true
+  }'
+```
+
+**Example Success Response (Found with Full Metadata)**:
+```json
+{
+  "success": true,
+  "found": true,
+  "projectId": "auth-service",
+  "project": {
+    "name": "auth-service",
+    "description": "Authentication microservice for the platform",
+    "tags": ["auth", "backend", "nodejs"],
+    "type": "repository",
+    "primaryLanguage": "TypeScript",
+    "framework": "Express"
+  },
+  "capabilities": {
+    "canSubmitTasks": true,
+    "canCreateIssues": true,
+    "canCreatePRs": true,
+    "canReadCode": true,
+    "canWriteCode": true,
+    "integrations": ["github", "ade", "alexandria"]
+  },
+  "localClones": [
+    {
+      "path": "/Users/dev/work/auth-service",
+      "isPrimary": true,
+      "lastModified": "2025-11-08T15:30:00Z",
+      "branch": "main",
+      "isDirty": false,
+      "alexandriaRegistered": true
+    },
+    {
+      "path": "/Users/dev/forks/auth-service",
+      "isPrimary": false,
+      "branch": "feature/oauth",
+      "isDirty": true,
+      "alexandriaRegistered": false
+    }
+  ],
+  "remote": {
+    "url": "https://github.com/myorg/auth-service",
+    "platform": "github",
+    "owner": "myorg",
+    "repoName": "auth-service",
+    "isPrivate": false
+  },
+  "message": "Project found with full metadata and permissions"
+}
+```
+
+**Example Success Response (Found but Limited Access)**:
+```json
+{
+  "success": true,
+  "found": true,
+  "projectId": "third-party-lib",
+  "project": {
+    "name": "third-party-lib",
+    "description": "External dependency installed via npm",
+    "type": "package",
+    "primaryLanguage": "JavaScript"
+  },
+  "capabilities": {
+    "canSubmitTasks": false,
+    "canCreateIssues": false,
+    "canCreatePRs": false,
+    "canReadCode": true,
+    "canWriteCode": false,
+    "integrations": []
+  },
+  "localClones": [
+    {
+      "path": "/Users/dev/my-project/node_modules/third-party-lib",
+      "isPrimary": true,
+      "alexandriaRegistered": false
+    }
+  ],
+  "message": "Package found (read-only access)"
+}
+```
+
+**Example Success Response (Not Found)**:
+```json
+{
+  "success": true,
+  "found": false,
+  "projectId": "unknown-project",
+  "suggestions": [
+    "Clone from GitHub: git clone https://github.com/search?q=unknown-project",
+    "Register existing local repository in Alexandria",
+    "Install as npm package: npm install unknown-project",
+    "Check project name spelling"
+  ],
+  "message": "Project not found in registered repositories or local clones"
+}
+```
+
+---
+
+### 4. Submit Task (New - Recommended)
 
 Submit a task to the ADE system using the new configurable pending queue system.
 
@@ -324,6 +526,7 @@ Each file contains:
 |---------------|---------------|-------------------|--------|
 | `submit_task` | `POST /tasks/submit` | Configurable pending queue (`PRINCIPLE_MCP_PENDING_QUEUE_PATH`) | **Recommended** |
 | `submit_dependency_task` | `POST /dependencies/submit` | Local Memory Palace persistence (`.palace-work/tasks/`) | Legacy (to be deprecated) |
+| `resolve_project` | `POST /projects/resolve` | N/A (query-only, no fallback needed) | **New** |
 | N/A (HTTP-only) | `POST /dependencies/resolve` | N/A (query-only, no fallback needed) | Active |
 | `get_dependency_task_doc` | N/A (local only) | Always uses local Memory Palace | Active |
 | `add_memory_note` | N/A (local only) | Always uses local Memory Palace | Active |

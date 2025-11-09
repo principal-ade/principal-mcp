@@ -28,8 +28,10 @@ The CLI reads the same environment variables as the Electron app so it can route
 | Tool | Purpose |
 | ---- | ------- |
 | `submit_dependency_task` | Submit a dependency task to ADE; if the bridge is unavailable the task is persisted locally using Memory Palace. |
+| `submit_task` | Submit a task to ADE with configurable pending queue path; recommended over `submit_dependency_task`. |
 | `get_dependency_task_doc` | Resolve the absolute path to a dependency task document stored in Memory Palace. |
 | `add_memory_note` | Create anchored notes in the repository's Memory Palace for storing development insights. |
+| `resolve_project` | Get comprehensive project information including metadata, permissions, local clones, and remote details. |
 
 ## Package Layout
 

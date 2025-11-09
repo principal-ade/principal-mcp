@@ -1,6 +1,6 @@
 {
   "name": "@principal-ai/principal-mcp",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Standalone MCP server bundle for PrincipleMD - run with npx or bunx",
   "main": "dist/mcp-server.js",
   "bin": {

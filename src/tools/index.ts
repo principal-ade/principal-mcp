@@ -5,3 +5,4 @@ export { SubmitDependencyTaskTool } from './dependency/SubmitDependencyTaskTool'
 export { SubmitTaskTool } from './task/SubmitTaskTool';
 export { GetDependencyTaskDocTool } from './dependency/GetDependencyTaskDocTool';
 export { AddMemoryNoteTool } from './memory/AddMemoryNoteTool';
+export { ResolveProjectTool } from './project/ResolveProjectTool';
