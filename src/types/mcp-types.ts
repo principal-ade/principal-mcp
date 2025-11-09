@@ -53,6 +53,8 @@ export interface McpServerConfig {
   bridgePort: number;
   bridgeHost?: string;
   bridgePath?: string;
+  pendingQueuePath?: string;      // Configurable pending task queue location for submit_task tool
+  enabledTools?: string[];        // List of tool names to enable (undefined = all tools)
 }
 
 export interface HttpBridgeRequest {

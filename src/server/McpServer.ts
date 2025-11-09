@@ -9,6 +9,7 @@ import {
 
 import {
   SubmitDependencyTaskTool,
+  SubmitTaskTool,
   GetDependencyTaskDocTool,
   AddMemoryNoteTool,
 } from '../tools';
@@ -44,9 +45,26 @@ export class McpServer {
   }
 
   private setupDefaultTools() {
-    this.addTool(new SubmitDependencyTaskTool(this.config));
-    this.addTool(new GetDependencyTaskDocTool(this.config));
-    this.addTool(new AddMemoryNoteTool(this.config));
+    const tools: Array<{ name: string; factory: () => AnyMcpTool }> = [
+      {
+        name: 'submit_dependency_task',
+        factory: () => new SubmitDependencyTaskTool(this.config) as AnyMcpTool,
+      },
+      { name: 'submit_task', factory: () => new SubmitTaskTool(this.config) as AnyMcpTool },
+      {
+        name: 'get_dependency_task_doc',
+        factory: () => new GetDependencyTaskDocTool(this.config) as AnyMcpTool,
+      },
+      { name: 'add_memory_note', factory: () => new AddMemoryNoteTool(this.config) as AnyMcpTool },
+    ];
+
+    for (const tool of tools) {
+      // If enabledTools is undefined, enable all tools
+      // Otherwise, only enable tools in the list
+      if (!this.config.enabledTools || this.config.enabledTools.includes(tool.name)) {
+        this.addTool(tool.factory());
+      }
+    }
   }
 
   private setupDefaultResources() {

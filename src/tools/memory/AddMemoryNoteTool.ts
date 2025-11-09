@@ -1,6 +1,7 @@
 import { MemoryPalace, NodeFileSystemAdapter } from '@a24z/core-library';
 import { z } from 'zod';
 
+import type { ValidatedRepositoryPath } from '@a24z/core-library';
 import type { McpServerConfig, McpToolResult } from '../../types';
 import { BaseTool } from '../base-tool';
 
@@ -20,7 +21,7 @@ const AddMemoryNoteSchema = z.object({
   anchors: z
     .array(z.string().min(1, 'anchor value cannot be empty'))
     .min(1, 'at least one anchor is required'),
-  tags: z.array(z.string().min(1, 'tag value cannot be empty')).default([]),
+  tags: z.array(z.string().min(1, 'tag value cannot be empty')).optional(),
   metadata: z.record(z.unknown()).optional(),
   codebaseViewId: z.string().min(1).optional(),
 });
@@ -42,7 +43,7 @@ export class AddMemoryNoteTool extends BaseTool<AddMemoryNoteInput, AddMemoryNot
       const validatedRoot = MemoryPalace.validateRepositoryPath(
         fsAdapter,
         input.repositoryRoot,
-      );
+      ) as ValidatedRepositoryPath;
 
       const baseDirectory = this.resolveWorkingDirectory(
         fsAdapter,
@@ -82,7 +83,7 @@ export class AddMemoryNoteTool extends BaseTool<AddMemoryNoteInput, AddMemoryNot
 
   private resolveWorkingDirectory(
     fsAdapter: NodeFileSystemAdapter,
-    repositoryRoot: string,
+    repositoryRoot: ValidatedRepositoryPath,
     workingDirectory?: string,
   ): string {
     if (!workingDirectory) {
@@ -100,7 +101,7 @@ export class AddMemoryNoteTool extends BaseTool<AddMemoryNoteInput, AddMemoryNot
 
   private normalizeAnchors(
     fsAdapter: NodeFileSystemAdapter,
-    repositoryRoot: string,
+    repositoryRoot: ValidatedRepositoryPath,
     workingDirectory: string,
     anchors: string[],
   ): string[] {
@@ -109,7 +110,11 @@ export class AddMemoryNoteTool extends BaseTool<AddMemoryNoteInput, AddMemoryNot
         ? anchor
         : fsAdapter.join(workingDirectory, anchor);
 
-      return MemoryPalace.validateRelativePath(repositoryRoot, absoluteAnchor, fsAdapter);
+      return MemoryPalace.validateRelativePath(
+        repositoryRoot,
+        absoluteAnchor,
+        fsAdapter,
+      ) as unknown as string;
     });
   }
 }
