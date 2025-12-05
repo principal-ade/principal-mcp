@@ -59,7 +59,7 @@ const ResolveProjectSchema = z.object({
 
 type ResolveProjectInput = z.infer<typeof ResolveProjectSchema>;
 
-export class ResolveProjectTool extends BaseTool<ResolveProjectInput, ResolveProjectResult> {
+export class ResolveProjectTool extends BaseTool<z.input<typeof ResolveProjectSchema>, ResolveProjectResult> {
   constructor(config: McpServerConfig) {
     super(config);
   }

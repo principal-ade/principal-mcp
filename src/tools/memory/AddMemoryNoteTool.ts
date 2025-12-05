@@ -1,7 +1,8 @@
-import { MemoryPalace, NodeFileSystemAdapter } from '@a24z/core-library';
+import { MemoryPalace } from '@principal-ai/alexandria-core-library';
+import { NodeFileSystemAdapter } from '@principal-ai/alexandria-core-library/node';
 import { z } from 'zod';
 
-import type { ValidatedRepositoryPath } from '@a24z/core-library';
+import type { ValidatedRepositoryPath } from '@principal-ai/alexandria-core-library';
 import type { McpServerConfig, McpToolResult } from '../../types';
 import { BaseTool } from '../base-tool';
 

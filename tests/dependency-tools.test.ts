@@ -3,9 +3,10 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import { MemoryPalace, NodeFileSystemAdapter } from '@a24z/core-library';
+import { MemoryPalace } from '@principal-ai/alexandria-core-library';
+import { NodeFileSystemAdapter } from '@principal-ai/alexandria-core-library/node';
 
-import type { ValidatedRelativePath } from '@a24z/core-library';
+import type { ValidatedRelativePath } from '@principal-ai/alexandria-core-library';
 
 import { SubmitDependencyTaskTool } from '../src/tools/dependency/SubmitDependencyTaskTool';
 import { GetDependencyTaskDocTool } from '../src/tools/dependency/GetDependencyTaskDocTool';

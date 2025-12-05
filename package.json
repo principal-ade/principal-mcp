@@ -34,7 +34,7 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@a24z/core-library": "^0.1.25",
+    "@principal-ai/alexandria-core-library": "^0.1.0",
     "@modelcontextprotocol/sdk": "^1.0.4",
     "globby": "^14.1.0",
     "zod": "^3.25.76"
