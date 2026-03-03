@@ -31,7 +31,7 @@ async function main() {
       banner: {
         js: banner,
       },
-      external: ['@modelcontextprotocol/sdk', 'zod'],
+      external: ['@modelcontextprotocol/sdk', 'zod', '@opentelemetry/api'],
       minify: false,
       sourcemap: true,
       metafile: true,

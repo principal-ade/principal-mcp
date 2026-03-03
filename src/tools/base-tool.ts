@@ -14,7 +14,7 @@ export abstract class BaseTool<TParams = unknown, TResult = unknown>
 
   abstract name: string;
   abstract description: string;
-  abstract schema: z.ZodType<TParams, z.ZodTypeDef, TParams>;
+  abstract schema: z.ZodSchema<TParams>;
 
   get inputSchema(): JsonSchema {
     return zodToJsonSchema(this.schema);
@@ -32,7 +32,7 @@ export abstract class BaseTool<TParams = unknown, TResult = unknown>
           content: [
             {
               type: 'text',
-              text: `Validation error: ${error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')}`,
+              text: `Validation error: ${error.issues.map((e) => `${e.path.map(String).join('.')}: ${e.message}`).join(', ')}`,
             },
           ],
           isError: true,

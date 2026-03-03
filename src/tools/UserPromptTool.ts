@@ -149,12 +149,9 @@ export class UserPromptTool extends BaseTool {
       req.on('error', (error: Error) => {
         console.error('[UserPromptTool] Error:', error);
 
-        let errorMessage = 'Failed to show prompt';
-        if (error.message.includes('ECONNREFUSED')) {
-          errorMessage = BRANDING.MCP_BRIDGE_ERROR;
-        } else {
-          errorMessage = error.message;
-        }
+        const errorMessage = error.message.includes('ECONNREFUSED')
+          ? BRANDING.MCP_BRIDGE_ERROR
+          : error.message;
 
         resolve({
           content: [

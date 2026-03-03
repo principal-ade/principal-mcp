@@ -1,12 +1,6 @@
-import { MemoryPalace } from '@principal-ai/alexandria-core-library';
-import { NodeFileSystemAdapter } from '@principal-ai/alexandria-core-library/node';
+import { Core } from '@backlog-md/core';
+import { NodeFileSystemAdapter } from '@principal-ai/repository-abstraction/node';
 import { z } from 'zod';
-
-import type {
-  CreateTaskInput,
-  ValidatedRelativePath,
-  ValidatedRepositoryPath,
-} from '@principal-ai/alexandria-core-library';
 
 import type { McpServerConfig, McpToolResult } from '../../types';
 import { BaseTool } from '../base-tool';
@@ -14,14 +8,21 @@ import { BaseTool } from '../base-tool';
 interface SubmitDependencyTaskResult {
   success: boolean;
   taskId?: string;
+  remoteRepository?: string;
+  localTrackingTaskId?: string;
+  message?: string;
+}
+
+interface AdeSubmitResponse {
+  success: boolean;
+  taskId?: string;
   repository?: string;
-  persistedOffline?: boolean;
   message?: string;
 }
 
 const SubmitDependencyTaskSchema = z.object({
   dependencyId: z.string().min(1, 'dependencyId is required'),
-  repositoryRoot: z.string().optional(),
+  repositoryRoot: z.string().min(1, 'repositoryRoot is required'),
   taskSummary: z.string().min(1, 'taskSummary is required'),
   taskDetails: z.string().min(1, 'taskDetails is required'),
   priority: z.enum(['low', 'normal', 'high', 'critical']).optional(),
@@ -40,33 +41,49 @@ export class SubmitDependencyTaskTool extends BaseTool<
   }
 
   name = 'submit_dependency_task';
-  description = 'Submit a dependency task to ADE, falling back to Memory Palace when offline.';
+  description =
+    'Submit a task to a dependency repository via ADE and create a local tracking entry.';
   schema = SubmitDependencyTaskSchema;
 
-  async execute(input: SubmitDependencyTaskInput): Promise<
-    McpToolResult<SubmitDependencyTaskResult>
-  > {
-    const payload = await this.trySubmitToAde(input);
-    if (payload.success) {
-      return this.createSuccessResponse('Dependency task submitted successfully.', payload);
+  async execute(
+    input: SubmitDependencyTaskInput,
+  ): Promise<McpToolResult<SubmitDependencyTaskResult>> {
+    // Submit to ADE
+    const adeResult = await this.submitToAde(input);
+    if (!adeResult.success) {
+      return this.createErrorResponse(
+        adeResult.message ?? 'Failed to submit task to ADE bridge.',
+      );
     }
 
+    // Create local tracking entry in backlog
     try {
-      const fallback = this.persistTaskLocally(input);
-      return this.createSuccessResponse(
-        'ADE bridge unavailable. Task persisted locally for pickup.',
-        fallback,
-      );
+      const trackingTaskId = await this.createLocalTrackingEntry(input, adeResult);
+      return this.createSuccessResponse('Dependency task submitted and tracked locally.', {
+        success: true,
+        taskId: adeResult.taskId,
+        remoteRepository: adeResult.repository,
+        localTrackingTaskId: trackingTaskId,
+        message: `Task ${adeResult.taskId} created in ${adeResult.repository}. Tracking entry created locally.`,
+      });
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to persist dependency task locally.';
-      return this.createErrorResponse(message);
+      // ADE succeeded but local tracking failed - still return success with warning
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return this.createSuccessResponse(
+        'Dependency task submitted but local tracking failed.',
+        {
+          success: true,
+          taskId: adeResult.taskId,
+          remoteRepository: adeResult.repository,
+          message: `Task created in ${adeResult.repository} but failed to create local tracking entry: ${message}`,
+        },
+      );
     }
   }
 
-  private async trySubmitToAde(
+  private async submitToAde(
     input: SubmitDependencyTaskInput,
-  ): Promise<SubmitDependencyTaskResult> {
+  ): Promise<AdeSubmitResponse> {
     const bridgeHost = this.config.bridgeHost ?? 'localhost';
     const bridgePort = this.config.bridgePort ?? 3044;
     const protocol = process.env.PRINCIPLE_MCP_PROTOCOL ?? 'http';
@@ -81,15 +98,17 @@ export class SubmitDependencyTaskTool extends BaseTool<
       });
 
       if (!response.ok) {
-        throw new Error(`ADE bridge responded with status ${response.status}`);
+        return {
+          success: false,
+          message: `ADE bridge responded with status ${response.status}`,
+        };
       }
 
-      const data = (await response.json()) as SubmitDependencyTaskResult;
+      const data = (await response.json()) as AdeSubmitResponse;
       return {
         success: true,
         taskId: data.taskId,
-        repository: data.repository ?? input.repositoryRoot,
-        persistedOffline: false,
+        repository: data.repository,
         message: data.message,
       };
     } catch (error) {
@@ -98,80 +117,66 @@ export class SubmitDependencyTaskTool extends BaseTool<
     }
   }
 
-  private persistTaskLocally(input: SubmitDependencyTaskInput): SubmitDependencyTaskResult {
-    if (!input.repositoryRoot) {
-      throw new Error(
-        'repositoryRoot is required when ADE bridge is unavailable to persist dependency tasks locally.',
-      );
-    }
-
+  private async createLocalTrackingEntry(
+    input: SubmitDependencyTaskInput,
+    adeResult: AdeSubmitResponse,
+  ): Promise<string> {
     const fsAdapter = new NodeFileSystemAdapter();
-    const validatedRoot = MemoryPalace.validateRepositoryPath(
-      fsAdapter,
-      input.repositoryRoot,
-    ) as ValidatedRepositoryPath;
-    const palace = new MemoryPalace(validatedRoot, fsAdapter);
-
-    const relativeAnchors = this.toRelativeAnchors(fsAdapter, validatedRoot, input.anchors ?? []);
-    const directoryPath = this.resolveDirectoryPath(fsAdapter, validatedRoot, relativeAnchors);
-    const content = this.composeTaskContent(input.taskSummary, input.taskDetails);
-
-    const taskInput: CreateTaskInput = {
-      content,
-      directoryPath,
-      priority: input.priority,
-      tags: input.tags,
-      anchors: relativeAnchors,
-    };
-
-    const senderId = fsAdapter.getRepositoryName(validatedRoot);
-    const task = palace.receiveTask(taskInput, senderId);
-
-    return {
-      success: true,
-      taskId: task.id,
-      repository: validatedRoot,
-      persistedOffline: true,
-      message: 'Task queued in local Memory Palace work queue.',
-    };
-  }
-
-  private toRelativeAnchors(
-    fsAdapter: NodeFileSystemAdapter,
-    repositoryRoot: ValidatedRepositoryPath,
-    anchors: string[],
-  ): string[] {
-    return anchors.map(anchor => {
-      const absolute = fsAdapter.isAbsolute(anchor)
-        ? anchor
-        : fsAdapter.join(repositoryRoot, anchor);
-      const relative = MemoryPalace.validateRelativePath(repositoryRoot, absolute, fsAdapter);
-      return relative as unknown as string;
+    const core = new Core({
+      projectRoot: input.repositoryRoot,
+      adapters: { fs: fsAdapter },
     });
+
+    await core.initialize();
+
+    const task = await core.createTask({
+      title: `[Dependency] ${input.taskSummary}`,
+      status: 'To Do',
+      priority: this.mapPriority(input.priority),
+      labels: ['dependency-task', input.dependencyId, ...(input.tags ?? [])],
+      description: this.composeTrackingDescription(input, adeResult),
+    });
+
+    return task.id;
   }
 
-  private resolveDirectoryPath(
-    fsAdapter: NodeFileSystemAdapter,
-    repositoryRoot: ValidatedRepositoryPath,
-    anchors: string[],
-  ): ValidatedRelativePath {
-    if (!anchors.length) {
-      return '' as ValidatedRelativePath;
+  private mapPriority(
+    priority?: 'low' | 'normal' | 'high' | 'critical',
+  ): 'low' | 'medium' | 'high' | undefined {
+    switch (priority) {
+      case 'critical':
+      case 'high':
+        return 'high';
+      case 'normal':
+        return 'medium';
+      case 'low':
+        return 'low';
+      default:
+        return undefined;
     }
-
-    const firstAnchor = anchors[0];
-    const anchorAbsolute = fsAdapter.join(repositoryRoot, firstAnchor);
-    const directoryAbsolute = fsAdapter.dirname(anchorAbsolute);
-    return MemoryPalace.validateRelativePath(repositoryRoot, directoryAbsolute, fsAdapter);
   }
 
-  private composeTaskContent(summary: string, details: string): string {
-    const trimmedDetails = details.trim();
-    if (!trimmedDetails) {
-      return `# ${summary}`;
+  private composeTrackingDescription(
+    input: SubmitDependencyTaskInput,
+    adeResult: AdeSubmitResponse,
+  ): string {
+    const lines = [
+      `**Dependency:** ${input.dependencyId}`,
+      `**Remote Task ID:** ${adeResult.taskId}`,
+      `**Remote Repository:** ${adeResult.repository}`,
+      '',
+      '---',
+      '',
+      input.taskDetails,
+    ];
+
+    if (input.anchors?.length) {
+      lines.push('', '**Related files:**');
+      for (const anchor of input.anchors) {
+        lines.push(`- ${anchor}`);
+      }
     }
-    return trimmedDetails.startsWith('#')
-      ? trimmedDetails
-      : `# ${summary}\n\n${trimmedDetails}`;
+
+    return lines.join('\n');
   }
 }

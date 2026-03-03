@@ -9,9 +9,7 @@ import {
 
 import {
   SubmitDependencyTaskTool,
-  SubmitTaskTool,
-  GetDependencyTaskDocTool,
-  AddMemoryNoteTool,
+  SubmitUpstreamTaskTool,
   ResolveProjectTool,
 } from '../tools';
 import { McpServerConfig, McpTool, McpResource, AnyMcpTool } from '../types';
@@ -51,12 +49,10 @@ export class McpServer {
         name: 'submit_dependency_task',
         factory: () => new SubmitDependencyTaskTool(this.config) as AnyMcpTool,
       },
-      { name: 'submit_task', factory: () => new SubmitTaskTool(this.config) as AnyMcpTool },
       {
-        name: 'get_dependency_task_doc',
-        factory: () => new GetDependencyTaskDocTool(this.config) as AnyMcpTool,
+        name: 'submit_upstream_task',
+        factory: () => new SubmitUpstreamTaskTool(this.config) as AnyMcpTool,
       },
-      { name: 'add_memory_note', factory: () => new AddMemoryNoteTool(this.config) as AnyMcpTool },
       {
         name: 'resolve_project',
         factory: () => new ResolveProjectTool(this.config) as AnyMcpTool,
