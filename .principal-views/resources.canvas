@@ -1,0 +1,47 @@
+{
+  "name": "Service Resources & Instrumentation Scopes",
+  "markdown": ".principal-views/resources.md",
+  "nodes": [
+    {
+      "id": "principal-mcp-resource",
+      "type": "otel-resource",
+      "x": 100,
+      "y": 50,
+      "width": 300,
+      "height": 140,
+      "color": "#4A90E2",
+      "label": "principal-mcp",
+      "description": "MCP server providing task management and project resolution tools for PrincipalMD",
+      "otel": {
+        "resourceMatch": {
+          "service.name": "principal-mcp"
+        }
+      }
+    },
+    {
+      "id": "principal-mcp-scope",
+      "type": "otel-scope",
+      "x": 100,
+      "y": 250,
+      "width": 300,
+      "height": 120,
+      "color": "#7ED321",
+      "label": "principal-mcp",
+      "description": "Instrumentation for MCP server operations, tool handlers, bridge communication, and Memory Palace integration",
+      "otel": {
+        "scope": "principal-mcp"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "resource-to-scope",
+      "fromNode": "principal-mcp-resource",
+      "fromSide": "bottom",
+      "toNode": "principal-mcp-scope",
+      "toSide": "top",
+      "edgeType": "data-flow",
+      "label": "emits telemetry via"
+    }
+  ]
+}
