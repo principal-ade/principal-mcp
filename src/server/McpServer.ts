@@ -124,11 +124,35 @@ export class McpServer {
           mimeType: resource.mimeType || 'text/plain',
         });
       }
+      // One resource per local clone, fetched live from the bridge so they
+      // show up in the client's `@` menu (fuzzy-matched on `name`) alongside
+      // files. Read returns just the clone's absolute path.
+      for (const clone of await this.fetchClones()) {
+        resourceList.push({
+          uri: clone.uri,
+          name: clone.name,
+          description: clone.path,
+          mimeType: 'text/plain',
+        });
+      }
       return { resources: resourceList };
     });
 
     this.server.setRequestHandler(ReadResourceRequestSchema, async request => {
       const { uri } = request.params;
+
+      // Clone resources aren't in the static map — resolve them against the
+      // live bridge list and return the clone's path.
+      if (uri.startsWith('clone://')) {
+        const clone = (await this.fetchClones()).find(c => c.uri === uri);
+        if (!clone) {
+          throw new Error(`Unknown clone: ${uri}`);
+        }
+        return {
+          contents: [{ uri, mimeType: 'text/plain', text: clone.path }],
+        };
+      }
+
       const resource = this.resources.get(uri);
 
       if (!resource) {
@@ -146,6 +170,45 @@ export class McpServer {
         ],
       };
     });
+  }
+
+  /**
+   * Fetch the registered local clones from the bridge (`GET /api/repos`) and
+   * shape them into resource descriptors. Each clone's `uri` is keyed on its
+   * absolute path, which is the only unique key: the same repo can be cloned
+   * at two paths (same purl, same remote), so keying on purl/remote would
+   * collide and a read could return the wrong clone. `name` is the repo
+   * basename, which is what the client's `@` menu fuzzy-matches against;
+   * `description` carries the full path so same-named clones stay tellable
+   * apart. Returns [] when the bridge is unreachable, so the `@` menu simply
+   * shows files and no clones.
+   */
+  private async fetchClones(): Promise<Array<{ uri: string; name: string; path: string }>> {
+    const host = this.config.bridgeHost ?? 'localhost';
+    const port = this.config.bridgePort ?? 3044;
+    const protocol = process.env.PRINCIPLE_MCP_PROTOCOL ?? 'http';
+    const url = `${protocol}://${host}:${port}/api/repos`;
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        return [];
+      }
+      const body = (await response.json()) as {
+        repos?: Array<{ path?: string; remoteUrl?: string; purl?: string }>;
+      };
+      const repos = Array.isArray(body.repos) ? body.repos : [];
+      return repos
+        .filter((r): r is { path: string; remoteUrl?: string; purl?: string } =>
+          typeof r.path === 'string' && r.path.length > 0,
+        )
+        .map(r => {
+          const name = r.path.split('/').filter(Boolean).pop() ?? r.path;
+          return { uri: `clone://${r.path}`, name, path: r.path };
+        });
+    } catch {
+      return [];
+    }
   }
 
   addTool<TParams, TResult>(tool: McpTool<TParams, TResult>) {
