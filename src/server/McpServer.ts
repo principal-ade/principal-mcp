@@ -6,6 +6,7 @@ import {
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import { homedir } from 'node:os';
 
 import {
   SubmitDependencyTaskTool,
@@ -173,10 +174,36 @@ export class McpServer {
   }
 
   /**
+   * Turn a clone's absolute path into its resource URI. The path is the only
+   * unique key (the same repo can be cloned at two paths), but the raw absolute
+   * path makes for a long `@` token, so we shorten it for display: the home dir
+   * collapses to `~`, and an optional `PRINCIPLE_MCP_CLONE_BASE` (e.g.
+   * `~/Developer`) is stripped entirely for a workspace-relative form. A repo
+   * outside those bases keeps its absolute path. List and read derive the URI
+   * the same way, so it still round-trips; read returns the absolute path.
+   */
+  private cloneUri(absPath: string): string {
+    const home = homedir();
+    const base = process.env.PRINCIPLE_MCP_CLONE_BASE;
+    if (base) {
+      const abs = base.startsWith('~') ? `${home}${base.slice(1)}` : base;
+      const prefix = abs.endsWith('/') ? abs : `${abs}/`;
+      if (absPath.startsWith(prefix)) {
+        return `clone://${absPath.slice(prefix.length)}`;
+      }
+    }
+    if (absPath === home) return 'clone://~';
+    if (absPath.startsWith(`${home}/`)) {
+      return `clone://~/${absPath.slice(home.length + 1)}`;
+    }
+    return `clone://${absPath}`;
+  }
+
+  /**
    * Fetch the registered local clones from the bridge (`GET /api/repos`) and
-   * shape them into resource descriptors. Each clone's `uri` is keyed on its
-   * absolute path, which is the only unique key: the same repo can be cloned
-   * at two paths (same purl, same remote), so keying on purl/remote would
+   * shape them into resource descriptors. Each clone's `uri` is derived from
+   * its absolute path (see {@link cloneUri}) — the only unique key, since the
+   * same repo can be cloned at two paths, so keying on purl/remote would
    * collide and a read could return the wrong clone. `name` is the repo
    * basename, which is what the client's `@` menu fuzzy-matches against;
    * `description` carries the full path so same-named clones stay tellable
@@ -204,7 +231,7 @@ export class McpServer {
         )
         .map(r => {
           const name = r.path.split('/').filter(Boolean).pop() ?? r.path;
-          return { uri: `clone://${r.path}`, name, path: r.path };
+          return { uri: this.cloneUri(r.path), name, path: r.path };
         });
     } catch {
       return [];
