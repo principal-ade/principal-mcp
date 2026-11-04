@@ -9,9 +9,22 @@ import {
 import { homedir } from 'node:os';
 
 import {
-  SubmitDependencyTaskTool,
-  SubmitUpstreamTaskTool,
-  ResolveProjectTool,
+  BridgeRequestTool,
+  ListTopicsTool,
+  GetTopicTool,
+  CreateTopicTool,
+  AppendTopicSectionTool,
+  ListReposTool,
+  OpenRepoTool,
+  ListProcessesTool,
+  StartProcessTool,
+  GetProcessLogsTool,
+  StopProcessTool,
+  ListDocumentNotesTool,
+  CreateDocumentNoteTool,
+  OpenDocumentTool,
+  WatchPullRequestTool,
+  ListWatchedPullRequestsTool,
 } from '../tools';
 import { McpServerConfig, McpTool, McpResource, AnyMcpTool } from '../types';
 
@@ -46,18 +59,22 @@ export class McpServer {
 
   private setupDefaultTools() {
     const tools: Array<{ name: string; factory: () => AnyMcpTool }> = [
-      {
-        name: 'submit_dependency_task',
-        factory: () => new SubmitDependencyTaskTool(this.config) as AnyMcpTool,
-      },
-      {
-        name: 'submit_upstream_task',
-        factory: () => new SubmitUpstreamTaskTool(this.config) as AnyMcpTool,
-      },
-      {
-        name: 'resolve_project',
-        factory: () => new ResolveProjectTool(this.config) as AnyMcpTool,
-      },
+      { name: 'bridge_request', factory: () => new BridgeRequestTool(this.config) as AnyMcpTool },
+      { name: 'list_topics', factory: () => new ListTopicsTool(this.config) as AnyMcpTool },
+      { name: 'get_topic', factory: () => new GetTopicTool(this.config) as AnyMcpTool },
+      { name: 'create_topic', factory: () => new CreateTopicTool(this.config) as AnyMcpTool },
+      { name: 'upsert_topic_section', factory: () => new AppendTopicSectionTool(this.config) as AnyMcpTool },
+      { name: 'list_repos', factory: () => new ListReposTool(this.config) as AnyMcpTool },
+      { name: 'open_repo', factory: () => new OpenRepoTool(this.config) as AnyMcpTool },
+      { name: 'list_processes', factory: () => new ListProcessesTool(this.config) as AnyMcpTool },
+      { name: 'start_process', factory: () => new StartProcessTool(this.config) as AnyMcpTool },
+      { name: 'get_process_logs', factory: () => new GetProcessLogsTool(this.config) as AnyMcpTool },
+      { name: 'stop_process', factory: () => new StopProcessTool(this.config) as AnyMcpTool },
+      { name: 'list_document_notes', factory: () => new ListDocumentNotesTool(this.config) as AnyMcpTool },
+      { name: 'create_document_note', factory: () => new CreateDocumentNoteTool(this.config) as AnyMcpTool },
+      { name: 'open_document', factory: () => new OpenDocumentTool(this.config) as AnyMcpTool },
+      { name: 'watch_pull_request', factory: () => new WatchPullRequestTool(this.config) as AnyMcpTool },
+      { name: 'list_watched_pull_requests', factory: () => new ListWatchedPullRequestsTool(this.config) as AnyMcpTool },
     ];
 
     for (const tool of tools) {
